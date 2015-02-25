@@ -2,8 +2,11 @@
 package pop3
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"strconv"
 	"strings"
@@ -38,6 +41,34 @@ type Client struct {
 // The addr must include a port number.
 func Dial(addr string) (*Client, error) {
 	conn, err := net.Dial("tcp", addr)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return NewClient(conn)
+}
+
+func DialTls(addr, cert string, secure bool) (*Client, error) {
+	var err error
+	var conn *tls.Conn
+
+	if secure {
+		pem, err := ioutil.ReadFile(cert)
+		if err != nil {
+			return nil, err
+		}
+
+		roots := x509.NewCertPool()
+		ok := roots.AppendCertsFromPEM(pem)
+		if !ok {
+			return nil, fmt.Errorf("Failed to parse root certificate")
+		}
+
+		conn, err = tls.Dial("tcp", addr, &tls.Config{RootCAs: roots})
+	} else {
+		conn, err = tls.Dial("tcp", addr, &tls.Config{InsecureSkipVerify: true})
+	}
 
 	if err != nil {
 		return nil, err
