@@ -49,6 +49,8 @@ func Dial(addr string) (*Client, error) {
 	return NewClient(conn)
 }
 
+// Dial returns a new TLS Client connected to an POP server at addr.
+// The addr must be host:port.
 func DialTls(addr, cert string, secure bool) (*Client, error) {
 	var err error
 	var conn *tls.Conn
@@ -236,6 +238,63 @@ func (c *Client) Quit() error {
 // and calling receiveFn for each mail.
 func ReceiveMail(addr, user, pass string, receiveFn ReceiveMailFunc) error {
 	c, err := Dial(addr)
+
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		if err != nil && err != EOF {
+			c.Rset()
+		}
+
+		c.Quit()
+		c.Close()
+	}()
+
+	if err = c.User(user); err != nil {
+		return err
+	}
+
+	if err = c.Pass(pass); err != nil {
+		return err
+	}
+
+	var mis []MessageInfo
+
+	if mis, err = c.UidlAll(); err != nil {
+		return err
+	}
+
+	for _, mi := range mis {
+		var data string
+
+		data, err = c.Retr(mi.Number)
+
+		del, err := receiveFn(mi.Number, mi.Uid, data, err)
+
+		if err != nil && err != EOF {
+			return err
+		}
+
+		if del {
+			if err = c.Dele(mi.Number); err != nil {
+				return err
+			}
+		}
+
+		if err == EOF {
+			break
+		}
+	}
+
+	return nil
+}
+
+// ReceiveMailTls connects to the TLS server at addr, and authenticates with
+// user and pass, and calling receiveFn for each mail.
+func ReceiveMailTls(addr, user, pass, cert string, receiveFn ReceiveMailFunc) error {
+	c, err := DialTls(addr, cert, true)
 
 	if err != nil {
 		return err
