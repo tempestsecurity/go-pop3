@@ -5,7 +5,7 @@ This is a simple POP3 client package in Go language.
 
 ##Install
 
-```go
+```shell
 go get github.com/tempestsecurity/go-pop3
 ```
 
