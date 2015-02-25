@@ -28,6 +28,9 @@ address := "host:port"
 
 client, err := pop3.Dial(address)
 
+// or TLS Dialing
+// client, err := pop3.DialTls(address, "server.pem", true)
+
 if err != nil {
 	log.Fatalf("Error: %v\n", err)
 }
