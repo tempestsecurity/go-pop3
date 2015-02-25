@@ -3,6 +3,12 @@ go-pop3
 
 This is a simple POP3 client package in Go language.
 
+##Install
+
+```go
+go get github.com/tempestsecurity/go-pop3
+```
+
 ##Usage
 ```go
 if err := pop3.ReceiveMail(address, user, pass,
@@ -18,6 +24,8 @@ if err := pop3.ReceiveMail(address, user, pass,
 ```
 or use the method that implements the command  
 ```go
+address := "host:port"
+
 client, err := pop3.Dial(address)
 
 if err != nil {
