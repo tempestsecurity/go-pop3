@@ -52,11 +52,16 @@ func NewReader(r *bufio.Reader) *Reader {
 // eliding the final \n or \r\n from the returned string.
 // This calls textproto.Reader.ReadLine simply.
 func (r *Reader) ReadLine() (string, error) {
-	return r.R.ReadLine()
+	if r.R == nil {
+		return "", fmt.Errorf("ReadLine: textproto.Reader is nil")
+	}
+
 	// for debug
 	// l, err := r.R.ReadLine()
 	// log.Printf("> %s\n", l)
 	// return l, err
+
+	return r.R.ReadLine()
 }
 
 // ReadLines reads a multiline until the last line of the only period,
