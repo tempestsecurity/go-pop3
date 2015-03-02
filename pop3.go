@@ -86,6 +86,10 @@ func NewClient(conn net.Conn) (*Client, error) {
 	_, err := text.ReadResponse()
 
 	if err != nil {
+		if err.Error() == "Cannot read the line." {
+			err = ResponseError("Cannot Dial to host")
+		}
+
 		return nil, err
 	}
 

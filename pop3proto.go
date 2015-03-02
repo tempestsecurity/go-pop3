@@ -51,9 +51,17 @@ func NewReader(r *bufio.Reader) *Reader {
 // ReadLine reads a single line from r,
 // eliding the final \n or \r\n from the returned string.
 // This calls textproto.Reader.ReadLine simply.
-func (r *Reader) ReadLine() (string, error) {
-	if r.R == nil {
-		return "", fmt.Errorf("ReadLine: textproto.Reader is nil")
+func (r *Reader) ReadLine() (line string, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = ResponseError("Cannot read the line.")
+			line = ""
+		}
+	}()
+
+	if r == nil || r.R == nil {
+		err = ResponseError("Cannot read the line.")
+		return
 	}
 
 	// for debug
@@ -61,7 +69,8 @@ func (r *Reader) ReadLine() (string, error) {
 	// log.Printf("> %s\n", l)
 	// return l, err
 
-	return r.R.ReadLine()
+	line, err = r.R.ReadLine()
+	return
 }
 
 // ReadLines reads a multiline until the last line of the only period,
