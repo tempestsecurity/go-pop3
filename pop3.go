@@ -10,6 +10,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"time"
 )
 
 var (
@@ -40,13 +41,15 @@ type Client struct {
 // Dial returns a new Client connected to an POP server at addr.
 // The addr must include a port number.
 func Dial(addr string) (*Client, error) {
-	conn, err := net.Dial("tcp", addr)
+
+	timeoutDuration := 40 * time.Second
+	conn, err := net.DialTimeout("tcp", addr, timeoutDuration)
 
 	if err != nil {
 		return nil, err
 	}
 
-	return NewClient(conn)
+	return NewClient(conn, false)
 }
 
 // Dial returns a new TLS Client connected to an POP server at addr.
@@ -76,11 +79,19 @@ func DialTls(addr, cert string, secure bool) (*Client, error) {
 		return nil, err
 	}
 
-	return NewClient(conn)
+	return NewClient(conn, true)
 }
 
 // NewClient returns a new Client using an existing connection.
-func NewClient(conn net.Conn) (*Client, error) {
+func NewClient(conn net.Conn, secure bool) (*Client, error) {
+
+	if secure{
+		timeoutDuration := 40 * time.Second
+		if conn.(*tls.Conn) != nil{
+			conn.SetReadDeadline(time.Now().Add(timeoutDuration))
+		}
+	}
+
 	text := NewConn(conn)
 
 	_, err := text.ReadResponse()

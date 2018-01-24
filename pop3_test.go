@@ -194,7 +194,7 @@ func execute(t *testing.T, sServer, sClient string, processFn processFunc) {
 	var fake faker
 	fake.ReadWriter = bufio.NewReadWriter(bufio.NewReader(strings.NewReader(server)), bcmdbuf)
 
-	c, err := NewClient(fake)
+	c, err := NewClient(fake, false)
 
 	if err != nil {
 		t.Fatalf("NewClient: %v", err)
