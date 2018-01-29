@@ -40,21 +40,25 @@ type Client struct {
 
 // Dial returns a new Client connected to an POP server at addr.
 // The addr must include a port number.
-func Dial(addr string) (*Client, error) {
+func Dial(addr string, timeout int64) (*Client, error) {
 
-	timeoutDuration := 40 * time.Second
-	conn, err := net.DialTimeout("tcp", addr, timeoutDuration)
+	timeoutDuration := time.Duration(timeout) * time.Second
+	conn, err := net.Dial("tcp", addr)
+
+	if conn != nil{
+		conn.SetReadDeadline(time.Now().Add(timeoutDuration))
+	}
 
 	if err != nil {
 		return nil, err
 	}
 
-	return NewClient(conn, false)
+	return NewClient(conn)
 }
 
 // Dial returns a new TLS Client connected to an POP server at addr.
 // The addr must be host:port.
-func DialTls(addr, cert string, secure bool) (*Client, error) {
+func DialTls(addr, cert string, secure bool, timeout int64) (*Client, error) {
 	var err error
 	var conn *tls.Conn
 
@@ -79,18 +83,16 @@ func DialTls(addr, cert string, secure bool) (*Client, error) {
 		return nil, err
 	}
 
-	return NewClient(conn, true)
+	timeoutDuration := time.Duration(timeout) * time.Second
+	if conn != nil{
+		conn.SetReadDeadline(time.Now().Add(timeoutDuration))
+	}
+
+	return NewClient(conn)
 }
 
 // NewClient returns a new Client using an existing connection.
-func NewClient(conn net.Conn, secure bool) (*Client, error) {
-
-	if secure{
-		timeoutDuration := 40 * time.Second
-		if conn.(*tls.Conn) != nil{
-			conn.SetReadDeadline(time.Now().Add(timeoutDuration))
-		}
-	}
+func NewClient(conn net.Conn) (*Client, error) {
 
 	text := NewConn(conn)
 
@@ -251,8 +253,8 @@ func (c *Client) Quit() error {
 // ReceiveMail connects to the server at addr,
 // and authenticates with user and pass,
 // and calling receiveFn for each mail.
-func ReceiveMail(addr, user, pass string, receiveFn ReceiveMailFunc) error {
-	c, err := Dial(addr)
+func ReceiveMail(addr, user, pass string, timeout int64, receiveFn ReceiveMailFunc) error {
+	c, err := Dial(addr, timeout)
 
 	if err != nil {
 		return err
@@ -308,8 +310,8 @@ func ReceiveMail(addr, user, pass string, receiveFn ReceiveMailFunc) error {
 
 // ReceiveMailTls connects to the TLS server at addr, and authenticates with
 // user and pass, and calling receiveFn for each mail.
-func ReceiveMailTls(addr, user, pass, cert string, receiveFn ReceiveMailFunc) error {
-	c, err := DialTls(addr, cert, true)
+func ReceiveMailTls(addr, user, pass, cert string, timeout int64, receiveFn ReceiveMailFunc) error {
+	c, err := DialTls(addr, cert, true, timeout)
 
 	if err != nil {
 		return err

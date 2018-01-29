@@ -8,7 +8,41 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"log"
+	"fmt"
 )
+
+func TestDialTimeoutCall(t *testing.T) {
+
+	ln, errList := net.Listen("tcp", "127.0.0.1:0");
+	if errList != nil {
+		t.Errorf("Error trying Listening: %v", errList)
+	}
+	defer ln.Close()
+
+	go func() {
+		for {
+			_, err := ln.Accept()
+			if err != nil {
+				break
+			}
+			time.Sleep(20 * time.Second)
+		}
+	}()
+
+	log.Println("Trying read emails:", ln.Addr())
+	startTime := time.Now()
+	err := ReceiveMail(ln.Addr().String(), "login", "password", 4 , nil)
+	elapsedTime := time.Now().Sub(startTime)
+	fmt.Printf("Finished in %v\n", elapsedTime)
+	if err == nil{
+		t.Error("it should got a timeout error")
+	}
+
+	if elapsedTime > 3 * time.Second{
+		t.Error("it should got a max 2 seconds timeout")
+	}
+}
 
 func TestSingleLineResponse(t *testing.T) {
 	if len(helloServer) != len(helloClient) {
@@ -194,7 +228,7 @@ func execute(t *testing.T, sServer, sClient string, processFn processFunc) {
 	var fake faker
 	fake.ReadWriter = bufio.NewReadWriter(bufio.NewReader(strings.NewReader(server)), bcmdbuf)
 
-	c, err := NewClient(fake, false)
+	c, err := NewClient(fake)
 
 	if err != nil {
 		t.Fatalf("NewClient: %v", err)
