@@ -8,39 +8,66 @@ import (
 	"strings"
 	"testing"
 	"time"
-	"log"
-	"fmt"
 )
 
-func TestDialTimeoutCall(t *testing.T) {
+type testResult struct{
+	elapsedTime time.Duration
+	err error
+}
 
-	ln, errList := net.Listen("tcp", "127.0.0.1:0");
-	if errList != nil {
-		t.Errorf("Error trying Listening: %v", errList)
-	}
-	defer ln.Close()
+var dialTimeoutTests = []struct {
+	readTimeout time.Duration
+	maxTime time.Duration
+}{
+	{5 * time.Second, 6 * time.Second},
+}
 
-	go func() {
-		for {
-			_, err := ln.Accept()
-			if err != nil {
-				break
-			}
-			time.Sleep(20 * time.Second)
+func TestDialReadTimeoutCall(t *testing.T) {
+
+	for i, tt := range dialTimeoutTests {
+
+		ln, errList := net.Listen("tcp", "127.0.0.1:0");
+		if errList != nil {
+			t.Errorf("Error trying Listening: %v", errList)
 		}
-	}()
+		defer ln.Close()
 
-	log.Println("Trying read emails:", ln.Addr())
-	startTime := time.Now()
-	err := ReceiveMail(ln.Addr().String(), "login", "password", 4 , nil)
-	elapsedTime := time.Now().Sub(startTime)
-	fmt.Printf("Finished in %v\n", elapsedTime)
-	if err == nil{
-		t.Error("it should got a timeout error")
-	}
+		ch := make(chan testResult)
+		max := time.NewTimer(tt.maxTime)
+		defer max.Stop()
 
-	if elapsedTime > 3 * time.Second{
-		t.Error("it should got a max 2 seconds timeout")
+		go func(readTimeout time.Duration, listener net.Listener){
+
+			startTime := time.Now()
+			err := ReceiveMail(listener.Addr().String(), "login", "password", readTimeout , nil)
+			elapsedTime := time.Now().Sub(startTime)
+
+			r := testResult{elapsedTime, err}
+			ch <- r
+
+		}(tt.readTimeout, ln)
+
+		//Setting server config and do nothing
+		_, err := ln.Accept()
+		if err != nil {
+			t.Errorf("Error trying accept connection %v", err)
+		}
+
+		select {
+		case <-max.C:
+			t.Fatalf("#%d: Dial didn't return in an expected time, %v is max time expected ", i, tt.maxTime)
+		case result := <-ch:
+
+			if result.err == nil{
+				t.Errorf("it should got a timeout error, but got %v", result.err)
+			}else{
+
+				errTimeout := result.err.(net.Error)
+				if !errTimeout.Timeout(){
+					t.Errorf("it should got a timeout error, but got %v", result.err)
+				}
+			}
+		}
 	}
 }
 
