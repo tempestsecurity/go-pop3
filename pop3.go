@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net"
 	"strconv"
@@ -94,6 +95,12 @@ func NewClient(conn net.Conn) (*Client, error) {
 	}
 
 	return &Client{Text: text, conn: conn}, nil
+}
+
+// IsClosed verifies that the connection is closed with the server
+func (c *Client) IsClosed() bool {
+	_, _, err := c.Stat()
+	return err == io.EOF
 }
 
 // User issues a USER command to the server using the provided user name.
@@ -237,12 +244,30 @@ func (c *Client) Quit() error {
 	return c.cmdSimple("QUIT")
 }
 
+// Auth returns a new Client connected to an POP server at addr
+// and authenticates with user and pass
+func Auth(addr, user, pass string) (c *Client, err error) {
+	c, err = Dial(addr)
+	if err != nil {
+		return nil, err
+	}
+
+	if err = c.User(user); err != nil {
+		return nil, err
+	}
+
+	if err = c.Pass(pass); err != nil {
+		return nil, err
+	}
+
+	return
+}
+
 // ReceiveMail connects to the server at addr,
 // and authenticates with user and pass,
 // and calling receiveFn for each mail.
 func ReceiveMail(addr, user, pass string, receiveFn ReceiveMailFunc) error {
-	c, err := Dial(addr)
-
+	c, err := Auth(addr, user, pass)
 	if err != nil {
 		return err
 	}
@@ -256,14 +281,6 @@ func ReceiveMail(addr, user, pass string, receiveFn ReceiveMailFunc) error {
 		c.Close()
 	}()
 
-	if err = c.User(user); err != nil {
-		return err
-	}
-
-	if err = c.Pass(pass); err != nil {
-		return err
-	}
-
 	var mis []MessageInfo
 
 	if mis, err = c.UidlAll(); err != nil {
@@ -276,6 +293,10 @@ func ReceiveMail(addr, user, pass string, receiveFn ReceiveMailFunc) error {
 		data, err = c.Retr(mi.Number)
 
 		del, err := receiveFn(mi.Number, mi.Uid, data, err)
+
+		if c.IsClosed() {
+			c, err = Auth(addr, user, pass)
+		}
 
 		if err != nil && err != EOF {
 			return err
@@ -295,11 +316,30 @@ func ReceiveMail(addr, user, pass string, receiveFn ReceiveMailFunc) error {
 	return nil
 }
 
+// AuthTls returns a new TLS Client connected to an POP server at addr
+// and authenticates with user and pass
+func AuthTls(addr, user, pass, cert string) (c *Client, err error) {
+	c, err = DialTls(addr, cert, true)
+	if err != nil {
+		return nil, err
+	}
+
+	if err = c.User(user); err != nil {
+		return nil, err
+	}
+
+	if err = c.Pass(pass); err != nil {
+		return nil, err
+	}
+
+	return
+}
+
 // ReceiveMailTls connects to the TLS server at addr, and authenticates with
 // user and pass, and calling receiveFn for each mail.
 func ReceiveMailTls(addr, user, pass, cert string, receiveFn ReceiveMailFunc) error {
-	c, err := DialTls(addr, cert, true)
 
+	c, err := AuthTls(addr, user, pass, cert)
 	if err != nil {
 		return err
 	}
@@ -313,14 +353,6 @@ func ReceiveMailTls(addr, user, pass, cert string, receiveFn ReceiveMailFunc) er
 		c.Close()
 	}()
 
-	if err = c.User(user); err != nil {
-		return err
-	}
-
-	if err = c.Pass(pass); err != nil {
-		return err
-	}
-
 	var mis []MessageInfo
 
 	if mis, err = c.UidlAll(); err != nil {
@@ -333,6 +365,10 @@ func ReceiveMailTls(addr, user, pass, cert string, receiveFn ReceiveMailFunc) er
 		data, err = c.Retr(mi.Number)
 
 		del, err := receiveFn(mi.Number, mi.Uid, data, err)
+
+		if c.IsClosed() {
+			c, err = AuthTls(addr, user, pass, cert)
+		}
 
 		if err != nil && err != EOF {
 			return err
